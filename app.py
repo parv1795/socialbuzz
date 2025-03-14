@@ -1,5 +1,5 @@
 import streamlit as st
-import openai
+from openai import OpenAI
 import pyperclip
 import time
 import os
@@ -162,7 +162,7 @@ def get_image_download_link(img, filename, text):
 # Function to generate image using DALL-E
 def generate_dall_e_images(prompt, n=1):
     try:
-        client = openai.OpenAI(api_key=st.session_state.api_key)
+        client = OpenAI(api_key=st.session_state.api_key)
         response = client.images.generate(
             model="dall-e-3",
             prompt=prompt,
@@ -194,7 +194,7 @@ def generate_image_prompts(title, post_content, num_images=2):
         {post_content}
         """
         
-        client = openai.OpenAI(api_key=st.session_state.api_key)
+        client = OpenAI(api_key=st.session_state.api_key)
         response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Use faster model to speed up process
             messages=[
@@ -285,9 +285,9 @@ def main():
         if st.button("Verify API Key"):
             if api_key:
                 try:
-                    openai.api_key = api_key
+                    # Use the direct client approach to avoid proxy issues
+                    client = OpenAI(api_key=api_key)
                     # Simple verification by just making a small request
-                    client = openai.OpenAI(api_key=api_key)
                     response = client.chat.completions.create(
                         model="gpt-3.5-turbo",
                         messages=[{"role": "user", "content": "Hello"}],
@@ -441,7 +441,7 @@ def main():
                                 """
                                 
                                 # Make request to GPT
-                                client = openai.OpenAI(api_key=st.session_state.api_key)
+                                client = OpenAI(api_key=st.session_state.api_key)
                                 response = client.chat.completions.create(
                                     model="gpt-4",
                                     messages=[
@@ -600,7 +600,7 @@ def main():
                         """
                         
                         # Make request to GPT
-                        client = openai.OpenAI(api_key=st.session_state.api_key)
+                        client = OpenAI(api_key=st.session_state.api_key)
                         response = client.chat.completions.create(
                             model="gpt-4",
                             messages=[
@@ -644,7 +644,7 @@ def main():
 
 if __name__ == "__main__":
     try:
-        openai.api_key = st.session_state.get('api_key', '')
+        # Don't set global API key, only use client instances
         main()
     except Exception as e:
         st.error(f"An error occurred: {str(e)}")
