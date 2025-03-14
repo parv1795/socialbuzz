@@ -162,7 +162,8 @@ def get_image_download_link(img, filename, text):
 # Function to generate image using DALL-E
 def generate_dall_e_images(prompt, n=1):
     try:
-        response = openai.images.generate(
+        client = openai.OpenAI(api_key=st.session_state.api_key)
+        response = client.images.generate(
             model="dall-e-3",
             prompt=prompt,
             n=n,
@@ -193,7 +194,8 @@ def generate_image_prompts(title, post_content, num_images=2):
         {post_content}
         """
         
-        response = openai.chat.completions.create(
+        client = openai.OpenAI(api_key=st.session_state.api_key)
+        response = client.chat.completions.create(
             model="gpt-3.5-turbo",  # Use faster model to speed up process
             messages=[
                 {"role": "system", "content": "You are an expert at creating visual prompts for AI image generators."},
@@ -285,7 +287,8 @@ def main():
                 try:
                     openai.api_key = api_key
                     # Simple verification by just making a small request
-                    response = openai.chat.completions.create(
+                    client = openai.OpenAI(api_key=api_key)
+                    response = client.chat.completions.create(
                         model="gpt-3.5-turbo",
                         messages=[{"role": "user", "content": "Hello"}],
                         max_tokens=5
@@ -438,7 +441,8 @@ def main():
                                 """
                                 
                                 # Make request to GPT
-                                response = openai.chat.completions.create(
+                                client = openai.OpenAI(api_key=st.session_state.api_key)
+                                response = client.chat.completions.create(
                                     model="gpt-4",
                                     messages=[
                                         {"role": "system", "content": "You are an expert social media manager who creates engaging, platform-appropriate content."},
@@ -596,7 +600,8 @@ def main():
                         """
                         
                         # Make request to GPT
-                        response = openai.chat.completions.create(
+                        client = openai.OpenAI(api_key=st.session_state.api_key)
+                        response = client.chat.completions.create(
                             model="gpt-4",
                             messages=[
                                 {"role": "system", "content": "You are an expert social media manager who creates engaging, platform-appropriate content."},
