@@ -75,6 +75,8 @@ if 'tone' not in st.session_state:
     st.session_state.tone = ""
 if 'length' not in st.session_state:
     st.session_state.length = ""
+if 'custom_word_count' not in st.session_state:
+    st.session_state.custom_word_count = 100
 
 # Header
 st.title("📱 Social Media Post Generator")
@@ -137,12 +139,23 @@ else:
         )
         
         # Length dropdown
+        length_options = ["", "Short", "Medium", "Long", "Thread/Multiple Messages", "Custom Length"]
         length = st.selectbox(
             "Select Length:",
-            ["", "Short", "Medium", "Long", "Thread/Multiple Messages"],
+            length_options,
             index=0 if st.session_state.length == "" else 
-                 ["", "Short", "Medium", "Long", "Thread/Multiple Messages"].index(st.session_state.length)
+                 (length_options.index(st.session_state.length) if st.session_state.length in length_options else 0)
         )
+        
+        # Custom word count input (conditionally shown)
+        if length == "Custom Length":
+            custom_word_count = st.number_input(
+                "Enter desired word count:",
+                min_value=1,
+                max_value=2000,
+                value=st.session_state.custom_word_count
+            )
+            st.session_state.custom_word_count = custom_word_count
         
         # Create post and reset buttons
         col1_btn, col2_btn = st.columns(2)
@@ -168,6 +181,10 @@ else:
             edited_post = st.text_area("Edit your post if needed:", value=st.session_state.generated_post, height=300)
             st.session_state.edited_post = edited_post
             
+            # Word count display
+            word_count = len(edited_post.split())
+            st.info(f"Current word count: {word_count} words")
+            
             # Copy button
             if st.button("Copy to Clipboard"):
                 try:
@@ -188,13 +205,17 @@ else:
             # Show loading indicator
             with st.spinner("Generating your post..."):
                 try:
-                    # Length definitions
-                    length_constraints = {
-                        "Short": "within 280 characters for Twitter, about 50-100 words for others",
-                        "Medium": "around 150-200 words",
-                        "Long": "around 300-500 words, detailed and comprehensive",
-                        "Thread/Multiple Messages": "create a thread of 3-5 connected posts"
+                    # Define word count targets based on length selection
+                    word_count_targets = {
+                        "Short": 75,  # ~75 words
+                        "Medium": 175,  # ~175 words
+                        "Long": 400,  # ~400 words
+                        "Thread/Multiple Messages": 450,  # ~450 words total across posts
+                        "Custom Length": st.session_state.custom_word_count  # User-defined
                     }
+                    
+                    # Get target word count based on selected length
+                    target_word_count = word_count_targets[length]
                     
                     # Platform-specific instructions
                     platform_instructions = {
@@ -217,31 +238,79 @@ else:
                         "Marketing/Salesy": "persuasive with a strong call-to-action"
                     }
                     
-                    # Construct the prompt
+                    # Determine if post should be a thread or single post
+                    is_thread = (length == "Thread/Multiple Messages")
+                    
+                    # Construct the prompt with explicit word count instructions
+                    if is_thread:
+                        format_instructions = (
+                            f"Create a thread of 3-5 connected posts. "
+                            f"Clearly separate each post with [Post 1], [Post 2], etc. "
+                            f"Ensure the total word count across all posts is EXACTLY {target_word_count} words."
+                        )
+                    else:
+                        format_instructions = (
+                            f"Create a SINGLE cohesive post with EXACTLY {target_word_count} words. "
+                            f"Do NOT use [Post 1], [Post 2] formatting - this should be one continuous post."
+                        )
+                    
                     prompt = f"""
                     Create a {platform} post about '{title}' with the following specifications:
                     - Tone: {tone} ({tone_descriptions[tone]})
-                    - Length: {length} ({length_constraints[length]})
+                    - Word Count: EXACTLY {target_word_count} words (this is very important)
+                    - Format: {format_instructions}
                     - Platform considerations: {platform_instructions[platform]}
                     
                     Make sure the post is engaging, authentic, and optimized for the {platform} platform.
-                    If generating a thread, clearly separate each post with [Post 1], [Post 2], etc.
-                    Include appropriate hashtags and emojis where relevant.
+                    Include appropriate hashtags and emojis where relevant, but these count toward the total word count.
+                    
+                    The final post MUST be exactly {target_word_count} words - no more, no less.
                     """
                     
-                    # Call OpenAI API
+                    # Call OpenAI API with adjusted max_tokens to accommodate the desired word count
+                    # Estimating ~1.5 tokens per word on average for English
+                    max_tokens = int(target_word_count * 2)  # Multiplying by 2 to give some margin
+                    
                     response = openai.chat.completions.create(
                         model="gpt-4",
                         messages=[
-                            {"role": "system", "content": f"You are an expert social media content creator specializing in creating engaging posts for {platform}."},
+                            {"role": "system", "content": f"You are an expert social media content creator specializing in creating engaging posts for {platform}. Your task is to create posts with EXACTLY the requested word count. {'Create a thread of multiple posts separated by [Post 1], [Post 2] etc.' if is_thread else 'Create a single cohesive post without any [Post X] markings.'}"},
                             {"role": "user", "content": prompt}
                         ],
-                        max_tokens=1000,
+                        max_tokens=max_tokens,
                         temperature=0.7
                     )
                     
                     # Extract the generated post
                     generated_post = response.choices[0].message.content.strip()
+                    
+                    # Verify and adjust word count if needed
+                    words = generated_post.split()
+                    actual_word_count = len(words)
+                    
+                    # If the word count is off by more than 10%, make another attempt
+                    if abs(actual_word_count - target_word_count) > target_word_count * 0.1:
+                        adjustment_prompt = f"""
+                        The post you created has {actual_word_count} words, but I requested EXACTLY {target_word_count} words.
+                        Please adjust the post to have EXACTLY {target_word_count} words while maintaining the same topic, tone, and style.
+                        {'Maintain the thread format with [Post X] markers.' if is_thread else 'Keep it as a single cohesive post without any [Post X] markings.'}
+                        
+                        Current post:
+                        {generated_post}
+                        """
+                        
+                        response = openai.chat.completions.create(
+                            model="gpt-4",
+                            messages=[
+                                {"role": "system", "content": f"You are an expert at adjusting text to exact word counts while maintaining quality."},
+                                {"role": "user", "content": adjustment_prompt}
+                            ],
+                            max_tokens=max_tokens,
+                            temperature=0.5
+                        )
+                        
+                        generated_post = response.choices[0].message.content.strip()
+                    
                     st.session_state.generated_post = generated_post
                     st.session_state.edited_post = generated_post
                     st.rerun()
@@ -259,6 +328,7 @@ else:
         st.session_state.length = ""
         st.session_state.generated_post = ""
         st.session_state.edited_post = ""
+        st.session_state.custom_word_count = 100  # Reset to default
         st.rerun()
 
 # Footer
