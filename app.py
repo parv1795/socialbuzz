@@ -285,7 +285,7 @@ def main():
         if st.button("Verify API Key"):
             if api_key:
                 try:
-                    # Use the direct client approach to avoid proxy issues
+                    # FIX: Initialize the client without proxies
                     client = OpenAI(api_key=api_key)
                     # Simple verification by just making a small request
                     response = client.chat.completions.create(
